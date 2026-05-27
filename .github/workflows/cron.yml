@@ -1,0 +1,101 @@
+name: Auto Update Map Stats
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # Every 5 minutes
+  workflow_dispatch:         # Allow manual trigger from GitHub UI
+
+env:
+  VERCEL_URL: https://fortnite-maps-stats.vercel.app
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+jobs:
+  # ── Runs every 5 minutes: update live player counts for top maps ──
+  metrics-top:
+    name: Live Player Counts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update top 50 maps
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            "$VERCEL_URL/api/cron/metrics-top" \
+            -H "x-cron-secret: $CRON_SECRET")
+          body=$(echo "$response" | head -1)
+          code=$(echo "$response" | tail -1)
+          echo "Status: $code | Response: $body"
+          if [ "$code" != "200" ]; then exit 1; fi
+
+  # ── Runs every 10 minutes: full metrics for all tracked maps ──
+  metrics-full:
+    name: Full Metrics Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if 10-minute interval
+        id: check
+        run: |
+          minute=$(date +%-M)
+          if (( minute % 10 == 0 )); then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync all map metrics
+        if: steps.check.outputs.run == 'true'
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            "$VERCEL_URL/api/cron/metrics" \
+            -H "x-cron-secret: $CRON_SECRET")
+          body=$(echo "$response" | head -1)
+          code=$(echo "$response" | tail -1)
+          echo "Status: $code | Response: $body"
+
+  # ── Runs every 15 minutes: fetch images for new maps ──
+  images:
+    name: Sync Map Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if 15-minute interval
+        id: check
+        run: |
+          minute=$(date +%-M)
+          if (( minute % 15 == 0 )); then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch map images
+        if: steps.check.outputs.run == 'true'
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            "$VERCEL_URL/api/cron/images" \
+            -H "x-cron-secret: $CRON_SECRET")
+          body=$(echo "$response" | head -1)
+          code=$(echo "$response" | tail -1)
+          echo "Status: $code | Response: $body"
+
+  # ── Runs every hour: discover new maps from Epic API ──
+  sync-islands:
+    name: Discover New Maps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if top of hour
+        id: check
+        run: |
+          minute=$(date +%-M)
+          if (( minute < 5 )); then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync new islands from Epic API
+        if: steps.check.outputs.run == 'true'
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            "$VERCEL_URL/api/cron/sync-islands" \
+            -H "x-cron-secret: $CRON_SECRET")
+          body=$(echo "$response" | head -1)
+          code=$(echo "$response" | tail -1)
+          echo "Status: $code | Response: $body"
