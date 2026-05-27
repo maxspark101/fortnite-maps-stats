@@ -130,7 +130,7 @@ export default async function MapDetailPage({ params }: { params: { id: string }
                 <CopyButton text={island.code} label="Copy" />
               </div>
               <a
-                href={`https://www.fortnite.com/creative/island/${island.code}`}
+                href={`https://www.fortnite.com/@${island.creator_code}/${island.code}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-primary text-center text-sm py-2"
