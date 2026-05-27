@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #1B1B2F;
+  --surface: #252540;
+  --primary: #6C63FF;
+  --secondary: #00D4FF;
+}
+
+body {
+  background-color: var(--background);
+  color: #ffffff;
+  font-family: var(--font-inter), sans-serif;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-xl border border-white/10 overflow-hidden;
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-primary/80 text-white font-semibold px-4 py-2 rounded-lg transition-colors;
+  }
+
+  .stat-badge {
+    @apply text-xs font-medium px-2 py-1 rounded-full bg-white/10;
+  }
+}
