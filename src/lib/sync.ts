@@ -233,6 +233,10 @@ export async function syncMetricsTop(topN = 50): Promise<{ processed: number; er
     }
   }
 
+  // Reset ALL maps to 0 before updating — clears stale values from previous Epic API data.
+  // The live updates below will immediately restore correct counts for active maps.
+  await supabase.from("islands").update({ current_ccu: 0 } as object).gt("current_ccu", 0);
+
   for (const code of codes) {
     const p = fetchOne(code).finally(() => active.delete(p));
     active.add(p);
