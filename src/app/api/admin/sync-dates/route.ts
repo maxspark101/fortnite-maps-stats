@@ -33,26 +33,27 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerClient();
 
-  // bucket=0..4 splits work across 5 parallel workers by first digit of code.
-  // Each bucket covers ~20% of maps so workers don't overlap.
+  // Each bucket covers a code range using >= / < so PostgreSQL can use the PK B-tree index.
   const bucket = parseInt(req.nextUrl.searchParams.get("bucket") ?? "0", 10);
-  const buckets: Record<number, string[]> = {
-    0: ["0", "1"],
-    1: ["2", "3"],
-    2: ["4", "5"],
-    3: ["6", "7"],
-    4: ["8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"],
+  const ranges: Record<number, [string, string]> = {
+    0: ["0", "2"],   // 0xxxx – 1xxxx
+    1: ["2", "4"],   // 2xxxx – 3xxxx
+    2: ["4", "6"],   // 4xxxx – 5xxxx
+    3: ["6", "8"],   // 6xxxx – 7xxxx
+    4: ["8", "￿"], // 8xxxx – 9xxxx + all letter codes (experience_br etc.)
   };
-  const prefixes = buckets[bucket] ?? buckets[0];
-  const orFilter = prefixes.map(p => `code.ilike.${p}*`).join(",");
+  const [rangeFrom, rangeTo] = ranges[bucket] ?? ranges[0];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("islands")
     .select("code")
     .eq("date_synced", false)
-    .or(orFilter)
+    .gte("code", rangeFrom)
     .order("code", { ascending: true })
     .limit(200);
+  if (rangeTo !== "￿") query = query.lt("code", rangeTo);
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data?.length) return NextResponse.json({ ok: true, done: true, bucket, processed: 0 });
