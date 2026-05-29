@@ -31,12 +31,14 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerClient();
 
-  // Simple scan of partial index — no ORDER BY, no range filter.
-  // The partial index on (code) WHERE date_synced=false returns rows instantly.
+  // Use the existing released_at index (created earlier) to find maps still holding
+  // our "discovery date" range (2026-05-13 to 2026-05-28).
+  // This range scan on an indexed column is fast.
   const { data, error } = await supabase
     .from("islands")
     .select("code")
-    .eq("date_synced", false)
+    .gte("released_at", "2026-05-13")
+    .lte("released_at", "2026-05-28T23:59:59Z")
     .limit(150);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -52,10 +54,16 @@ export async function GET(req: NextRequest) {
   async function processOne(code: string) {
     const releasedAt = await fetchReleaseDate(code);
     if (releasedAt) {
-      await supabase.from("islands").update({ released_at: releasedAt, date_synced: true } as object).eq("code", code);
+      // Real date from fortnite.gg — store it (may still be in May 2026 range for recent maps)
+      await supabase.from("islands")
+        .update({ released_at: releasedAt, date_synced: true } as object)
+        .eq("code", code);
       updated++;
     } else {
-      await supabase.from("islands").update({ date_synced: true } as object).eq("code", code);
+      // No date on fortnite.gg — set sentinel so this map is never retried
+      await supabase.from("islands")
+        .update({ released_at: "2000-01-01T00:00:00Z", date_synced: true } as object)
+        .eq("code", code);
       notFound++;
     }
   }
