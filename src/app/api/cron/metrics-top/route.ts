@@ -6,10 +6,11 @@ import { syncMetricsTop } from "@/lib/sync";
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const secretHeader = req.headers.get("x-cron-secret");
-  const validVercel = authHeader === `Bearer ${process.env.CRON_SECRET}`;
-  const validExternal = secretHeader === process.env.CRON_SECRET;
+  const secretQuery = req.nextUrl.searchParams.get("secret");
+  const secret = process.env.CRON_SECRET;
+  const valid = authHeader === `Bearer ${secret}` || secretHeader === secret || secretQuery === secret;
 
-  if (!validVercel && !validExternal) {
+  if (!valid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
