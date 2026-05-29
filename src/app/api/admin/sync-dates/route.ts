@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
     .select("code")
     .gte("released_at", "2026-05-13")
     .lte("released_at", "2026-05-28T23:59:59Z")
+    .eq("date_synced", false)
     .limit(150);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
