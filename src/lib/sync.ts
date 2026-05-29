@@ -268,16 +268,30 @@ export async function syncImages(batchSize = 100): Promise<{ updated: number; un
   const cutoff15m = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  // Priority A: 20 newest maps with no image (by last_synced_at) — ensures new maps get images fast
+  const { data: newestNoImg } = await supabase
+    .from("islands")
+    .select("code, image_url")
+    .is("image_url", null)
+    .order("last_synced_at", { ascending: false, nullsFirst: false })
+    .limit(20);
+
+  // Priority B: remaining slots — active maps with stale/missing images
+  const newestCodes = (newestNoImg ?? []).map(r => (r as { code: string }).code);
+  const remaining = batchSize - newestCodes.length;
+  const { data: activeData, error } = await supabase
     .from("islands")
     .select("code, image_url")
     .or(`image_url.is.null,and(current_ccu.gt.0,image_synced_at.lt.${cutoff15m}),and(current_ccu.gt.0,image_synced_at.is.null)`)
-    .order("image_url", { ascending: true, nullsFirst: true })
+    .not("code", "in", newestCodes.length ? `(${newestCodes.map(c => `"${c}"`).join(",")})` : `("")`)
     .order("current_ccu", { ascending: false, nullsFirst: false })
-    .limit(batchSize);
+    .limit(remaining);
 
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as { code: string; image_url: string | null }[];
+  const rows = [
+    ...(newestNoImg ?? []),
+    ...(activeData ?? []),
+  ] as { code: string; image_url: string | null }[];
   if (!rows.length) return { updated: 0, unchanged: 0, errors: 0 };
 
   let updated = 0;
