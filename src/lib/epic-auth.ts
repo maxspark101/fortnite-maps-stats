@@ -24,21 +24,27 @@ function extractImageFromHtml(html: string): string | null {
   return null;
 }
 
-// Fetches both live player count AND image URL in a single HTTP request.
-export async function fetchIslandPageData(code: string): Promise<{ playerCount: number | null; imageUrl: string | null }> {
+// Fetches live player count, image URL, and release date in a single HTTP request.
+export async function fetchIslandPageData(code: string): Promise<{
+  playerCount: number | null;
+  imageUrl: string | null;
+  releasedAt: string | null;
+}> {
   try {
     const res = await crossFetch(`https://fortnite.gg/island/${encodeURIComponent(code)}`, {
       headers: FGG_HEADERS,
     });
-    if (!res.ok) return { playerCount: null, imageUrl: null };
+    if (!res.ok) return { playerCount: null, imageUrl: null, releasedAt: null };
     const html = await res.text();
     const m = html.match(/js-players-now[^>]*data-n='(\d+)'/);
+    const dateMatch = html.match(/<time[^>]*datetime='([^']+)'/);
     return {
       playerCount: m ? parseInt(m[1], 10) : null,
       imageUrl: extractImageFromHtml(html),
+      releasedAt: dateMatch ? dateMatch[1] : null,
     };
   } catch {
-    return { playerCount: null, imageUrl: null };
+    return { playerCount: null, imageUrl: null, releasedAt: null };
   }
 }
 

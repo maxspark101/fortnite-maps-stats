@@ -233,18 +233,17 @@ export async function syncMetricsTop(topN = 50): Promise<{ processed: number; er
 
   async function fetchOne(code: string) {
     try {
-      // Single fortnite.gg request returns both live CCU and image URL
-      const { playerCount, imageUrl } = await fetchIslandPageData(code);
+      const { playerCount, imageUrl, releasedAt } = await fetchIslandPageData(code);
       const update: Record<string, unknown> = {
         current_ccu: playerCount ?? 0,
         metrics_fetched_at: now,
       };
       if (imageUrl) {
-        // Upload to Supabase Storage so image is served from our own CDN
         const storageUrl = await uploadIslandImage(code, imageUrl);
         update.image_url = storageUrl ?? imageUrl;
         update.image_synced_at = now;
       }
+      if (releasedAt) update.released_at = releasedAt;
       await supabase.from("islands").update(update as object).eq("code", code);
       processed++;
     } catch {
