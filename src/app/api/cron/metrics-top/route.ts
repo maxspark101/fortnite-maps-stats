@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await syncMetricsTop(50);
+    const result = await syncMetricsTop(200);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

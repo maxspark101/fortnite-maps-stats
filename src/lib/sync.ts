@@ -11,6 +11,13 @@ function latestValue(points: { value: number | null; timestamp: string }[]): num
   )[0]?.value ?? null;
 }
 
+// After Epic's API update, last10Minutes returns daily data (timestamps at 00:00:00.000Z)
+// instead of real-time granular data. Detect this to avoid overwriting live CCU with stale daily peaks.
+function isRealtimeData(points: { value: number | null; timestamp: string }[]): boolean {
+  if (!points?.length) return false;
+  return points.some(p => !p.timestamp.endsWith("T00:00:00.000Z"));
+}
+
 function latestRetention(
   points: { d1: number | null; d7: number | null; timestamp: string }[]
 ): { d1: number | null; d7: number | null } {
@@ -93,7 +100,11 @@ export async function syncMetrics(batchSize = 500): Promise<{ processed: number;
       fetchIslandMetrics(code, "last10Minutes"),
       fetchIslandMetrics(code, "last24Hours"),
     ]);
-    const currentCcu = latestValue(metrics10m.peakCCU ?? []);
+    // Only use last10Minutes CCU if Epic API still returns real-time granular data.
+    // After Epic's update, last10Minutes returns daily snapshots — in that case
+    // current_ccu is left untouched here and stays owned by syncMetricsTop (fortnite.gg).
+    const peakPoints = metrics10m.peakCCU ?? [];
+    const currentCcu = isRealtimeData(peakPoints) ? latestValue(peakPoints) : null;
     ccuMap.set(code, currentCcu);
     const retention = latestRetention(metrics24h.retention ?? []);
     metricRows.push({
@@ -135,16 +146,20 @@ export async function syncMetrics(batchSize = 500): Promise<{ processed: number;
       .insert(metricRows);
     if (insertError) throw new Error(`Metrics insert failed: ${insertError.message}`);
 
-    // Update current_ccu + denormalized metrics on islands for fast sorting
+    // Update denormalized metrics on islands for fast sorting.
+    // When Epic API returns real-time data (non-daily), update current_ccu.
+    // When Epic returns only daily snapshots, reset current_ccu to 0 so stale
+    // values don't pollute the sort — syncMetricsTop (fortnite.gg) owns live CCU.
     await Promise.allSettled(
       metricRows.map((row) => {
         const r = row as Record<string, unknown>;
+        const liveCcu = ccuMap.get(r.island_code as string);
         return supabase.from("islands")
           .update({
-            current_ccu:  ccuMap.get(r.island_code as string) ?? 0,
-            peak_ccu:     r.peak_ccu     ?? null,
-            plays:        r.plays        ?? null,
-            favorites:    r.favorites    ?? null,
+            current_ccu: liveCcu ?? 0,
+            peak_ccu:    r.peak_ccu  ?? null,
+            plays:       r.plays     ?? null,
+            favorites:   r.favorites ?? null,
           } as object)
           .eq("code", r.island_code as string);
       })
