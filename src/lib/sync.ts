@@ -198,10 +198,23 @@ export async function syncMetricsTop(topN = 50): Promise<{ processed: number; er
 
   if (error) throw new Error(error.message);
   const topCodes: string[] = (data ?? []).map((r: { code: string }) => r.code);
-  // Merge pinned codes at the front, deduplicate
+
+  // Also include the 20 newest maps that have never had metrics fetched (peak_ccu IS NULL).
+  // Without this, newly discovered maps never get player counts or images.
+  const { data: newData } = await supabase
+    .from("islands")
+    .select("code")
+    .is("peak_ccu", null)
+    .not("code", "in", `(${PINNED_CODES.map(c => `"${c}"`).join(",")})`)
+    .order("last_synced_at", { ascending: false })
+    .limit(20);
+  const newestCodes: string[] = (newData ?? []).map((r: { code: string }) => r.code);
+
+  // Merge: pinned first, then top by peak_ccu, then newest unsynced — deduplicate
   const codes: string[] = [
     ...PINNED_CODES,
     ...topCodes.filter(c => !PINNED_CODES.includes(c)),
+    ...newestCodes.filter(c => !PINNED_CODES.includes(c) && !topCodes.includes(c)),
   ];
   if (!codes.length) return { processed: 0, errors: 0 };
 
@@ -259,6 +272,7 @@ export async function syncImages(batchSize = 100): Promise<{ updated: number; un
     .from("islands")
     .select("code, image_url")
     .or(`image_url.is.null,and(current_ccu.gt.0,image_synced_at.lt.${cutoff15m}),and(current_ccu.gt.0,image_synced_at.is.null)`)
+    .order("image_url", { ascending: true, nullsFirst: true })
     .order("current_ccu", { ascending: false, nullsFirst: false })
     .limit(batchSize);
 
