@@ -187,11 +187,12 @@ const PINNED_CODES = ["experience_br", "experience_og", "experience_reload", "ex
 export async function syncMetricsTop(topN = 50): Promise<{ processed: number; errors: number }> {
   const supabase = createServerClient();
 
-  // Always re-fetch the top N maps regardless of when they were last fetched
+  // Select top N maps by peak_ccu (reliable daily data from Epic API) —
+  // current_ccu may be 0/stale but peak_ccu correctly identifies the most-played maps.
   const { data, error } = await supabase
     .from("islands")
     .select("code")
-    .order("current_ccu", { ascending: false, nullsFirst: false })
+    .order("peak_ccu", { ascending: false, nullsFirst: false })
     .limit(topN);
 
 
@@ -232,10 +233,6 @@ export async function syncMetricsTop(topN = 50): Promise<{ processed: number; er
       errors++;
     }
   }
-
-  // Reset ALL maps to 0 before updating — clears stale values from previous Epic API data.
-  // Uses a server-side RPC to avoid statement timeout on bulk updates.
-  await supabase.rpc("reset_inactive_ccu");
 
   for (const code of codes) {
     const p = fetchOne(code).finally(() => active.delete(p));
