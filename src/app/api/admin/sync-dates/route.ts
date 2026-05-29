@@ -9,7 +9,6 @@ const HEADERS = {
   Accept: "text/html,application/xhtml+xml",
 };
 
-// Fetches the real release date from fortnite.gg for a single map code.
 async function fetchReleaseDate(code: string): Promise<string | null> {
   try {
     const res = await crossFetch(`https://fortnite.gg/island/${encodeURIComponent(code)}`, {
@@ -26,37 +25,22 @@ async function fetchReleaseDate(code: string): Promise<string | null> {
 
 export async function GET(req: NextRequest) {
   const secretQuery = req.nextUrl.searchParams.get("secret");
-  const secret = process.env.CRON_SECRET;
-  if (secretQuery !== secret) {
+  if (secretQuery !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = createServerClient();
 
-  // Each bucket covers a code range using >= / < so PostgreSQL can use the PK B-tree index.
-  const bucket = parseInt(req.nextUrl.searchParams.get("bucket") ?? "0", 10);
-  const ranges: Record<number, [string, string]> = {
-    0: ["0", "2"],   // 0xxxx – 1xxxx
-    1: ["2", "4"],   // 2xxxx – 3xxxx
-    2: ["4", "6"],   // 4xxxx – 5xxxx
-    3: ["6", "8"],   // 6xxxx – 7xxxx
-    4: ["8", "￿"], // 8xxxx – 9xxxx + all letter codes (experience_br etc.)
-  };
-  const [rangeFrom, rangeTo] = ranges[bucket] ?? ranges[0];
-
-  let query = supabase
+  // Simple scan of partial index — no ORDER BY, no range filter.
+  // The partial index on (code) WHERE date_synced=false returns rows instantly.
+  const { data, error } = await supabase
     .from("islands")
     .select("code")
     .eq("date_synced", false)
-    .gte("code", rangeFrom)
-    .order("code", { ascending: true })
-    .limit(200);
-  if (rangeTo !== "￿") query = query.lt("code", rangeTo);
-
-  const { data, error } = await query;
+    .limit(150);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data?.length) return NextResponse.json({ ok: true, done: true, bucket, processed: 0 });
+  if (!data?.length) return NextResponse.json({ ok: true, done: true, processed: 0 });
 
   const codes = data.map((r: { code: string }) => r.code);
 
@@ -83,17 +67,5 @@ export async function GET(req: NextRequest) {
   }
   await Promise.all(active);
 
-  const remaining = await supabase
-    .from("islands")
-    .select("*", { count: "exact", head: true })
-    .eq("date_synced", false);
-
-  return NextResponse.json({
-    ok: true,
-    bucket,
-    processed: codes.length,
-    updated,
-    notFound,
-    remaining: remaining.count ?? 0,
-  });
+  return NextResponse.json({ ok: true, processed: codes.length, updated, notFound });
 }
