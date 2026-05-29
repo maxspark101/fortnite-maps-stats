@@ -49,8 +49,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("islands")
     .select("code")
-    .gte("released_at", "2026-05-13")
-    .lte("released_at", "2026-05-28T23:59:59Z")
+    .eq("date_synced", false)
     .or(orFilter)
     .order("peak_ccu", { ascending: false, nullsFirst: false })
     .limit(1000);
@@ -68,11 +67,10 @@ export async function GET(req: NextRequest) {
   async function processOne(code: string) {
     const releasedAt = await fetchReleaseDate(code);
     if (releasedAt) {
-      await supabase.from("islands").update({ released_at: releasedAt } as object).eq("code", code);
+      await supabase.from("islands").update({ released_at: releasedAt, date_synced: true } as object).eq("code", code);
       updated++;
     } else {
-      // Set to NULL so this map is excluded from future runs
-      await supabase.from("islands").update({ released_at: null } as object).eq("code", code);
+      await supabase.from("islands").update({ date_synced: true } as object).eq("code", code);
       notFound++;
     }
   }
@@ -87,8 +85,7 @@ export async function GET(req: NextRequest) {
   const remaining = await supabase
     .from("islands")
     .select("*", { count: "exact", head: true })
-    .gte("released_at", "2026-05-13")
-    .lte("released_at", "2026-05-28T23:59:59Z");
+    .eq("date_synced", false);
 
   return NextResponse.json({
     ok: true,
