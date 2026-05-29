@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     .gte("released_at", "2026-05-13")
     .lte("released_at", "2026-05-28T23:59:59Z")
     .order("peak_ccu", { ascending: false, nullsFirst: false })
-    .limit(500);
+    .limit(1500);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data?.length) return NextResponse.json({ ok: true, done: true, processed: 0 });
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   let updated = 0;
   let notFound = 0;
-  const CONCURRENT = 10;
+  const CONCURRENT = 20;
   const active = new Set<Promise<void>>();
 
   async function processOne(code: string) {
