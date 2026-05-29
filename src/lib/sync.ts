@@ -55,13 +55,18 @@ export async function syncIslands(maxPages = 50): Promise<{ updated: number }> {
       image_url: null,
       last_synced_at: now,
       discovery_rank: rank++,
+      // released_at records when WE first discovered this map from Epic API.
+      // ignoreDuplicates:false + onConflict means existing rows keep their original released_at.
     }));
 
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const { error } = await supabase
       .from("islands")
-      .upsert(rows.slice(i, i + CHUNK), { onConflict: "code" });
+      .upsert(rows.slice(i, i + CHUNK), {
+        onConflict: "code",
+        ignoreDuplicates: false,
+      });
     if (error) throw new Error(`Island upsert failed: ${error.message}`);
   }
 

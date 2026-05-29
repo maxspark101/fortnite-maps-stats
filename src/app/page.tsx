@@ -1,6 +1,5 @@
-import { getPopularIslands, getPlatformStats, getNewestMaps } from "@/lib/api";
+import { getPopularIslands, getPlatformStats } from "@/lib/api";
 import RealtimeIslands from "@/components/RealtimeIslands";
-import MapCard from "@/components/MapCard";
 import type { Island } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,13 +13,11 @@ function fmt(n: number): string {
 export default async function HomePage() {
   let islands: Island[] = [];
   let platform = null as Awaited<ReturnType<typeof getPlatformStats>> | null;
-  let newest: Island[] = [];
 
   try {
-    [islands, platform, newest] = await Promise.all([
+    [islands, platform] = await Promise.all([
       getPopularIslands("current_ccu", 24),
       getPlatformStats(),
-      getNewestMaps(6),
     ]);
   } catch {
     // Supabase not configured yet
@@ -87,26 +84,6 @@ export default async function HomePage() {
           <RealtimeIslands initialIslands={islands} />
         )}
       </section>
-
-      {/* ── Newest Maps ── */}
-      {newest.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-semibold">Newest Maps</h2>
-              <p className="text-muted text-sm mt-1">Recently added to Fortnite Creative</p>
-            </div>
-            <a href="/maps" className="text-sm text-primary hover:underline">
-              View all →
-            </a>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {newest.map(island => (
-              <MapCard key={island.code} island={island} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* ── Quick Links ── */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">

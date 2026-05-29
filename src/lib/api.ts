@@ -69,12 +69,13 @@ export async function getPopularIslands(
   const supabase = createServerClient();
 
   // Query islands table directly — all sort columns live there, no expensive JOIN needed
+  const sortColumn = sort === "newest" ? "released_at" : sort;
   const ascending = sort === "discovery_rank";
 
   let query = supabase
     .from("islands")
-    .select("code,title,creator_code,created_in,tags,category,image_url,current_ccu,discovery_rank,peak_ccu,plays,favorites")
-    .order(sort, { ascending, nullsFirst: false });
+    .select("code,title,creator_code,created_in,tags,category,image_url,current_ccu,discovery_rank,peak_ccu,plays,favorites,released_at")
+    .order(sortColumn, { ascending, nullsFirst: false });
 
   if (tag) query = query.contains("tags", [tag]);
 

@@ -11,6 +11,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "peak_ccu", label: "Peak Players (24h)" },
   { value: "plays", label: "Most Plays" },
   { value: "favorites", label: "Most Favorited" },
+  { value: "newest", label: "Newest Maps" },
 ];
 
 function buildUrl(sort: string, tag: string | undefined, page: number) {
