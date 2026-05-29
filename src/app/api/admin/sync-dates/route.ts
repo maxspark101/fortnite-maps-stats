@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     .select("code")
     .eq("date_synced", false)
     .or(orFilter)
-    .order("peak_ccu", { ascending: false, nullsFirst: false })
+    .order("code", { ascending: true })
     .limit(200);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
