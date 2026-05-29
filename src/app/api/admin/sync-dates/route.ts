@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     4: ["8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"],
   };
   const prefixes = buckets[bucket] ?? buckets[0];
-  const orFilter = prefixes.map(p => `code.ilike.${p}%`).join(",");
+  const orFilter = prefixes.map(p => `code.ilike.${p}*`).join(",");
 
   const { data, error } = await supabase
     .from("islands")
