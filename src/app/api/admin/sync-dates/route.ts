@@ -33,18 +33,30 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerClient();
 
-  // Pick maps still holding discovery-era dates (2026-05-13 to 2026-05-28).
-  // After processing: real date → updated, no date found → set to NULL (excluded from future runs).
+  // bucket=0..4 splits work across 5 parallel workers by first digit of code.
+  // Each bucket covers ~20% of maps so workers don't overlap.
+  const bucket = parseInt(req.nextUrl.searchParams.get("bucket") ?? "0", 10);
+  const buckets: Record<number, string[]> = {
+    0: ["0", "1"],
+    1: ["2", "3"],
+    2: ["4", "5"],
+    3: ["6", "7"],
+    4: ["8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"],
+  };
+  const prefixes = buckets[bucket] ?? buckets[0];
+  const orFilter = prefixes.map(p => `code.ilike.${p}%`).join(",");
+
   const { data, error } = await supabase
     .from("islands")
     .select("code")
     .gte("released_at", "2026-05-13")
     .lte("released_at", "2026-05-28T23:59:59Z")
+    .or(orFilter)
     .order("peak_ccu", { ascending: false, nullsFirst: false })
-    .limit(1500);
+    .limit(1000);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data?.length) return NextResponse.json({ ok: true, done: true, processed: 0 });
+  if (!data?.length) return NextResponse.json({ ok: true, done: true, bucket, processed: 0 });
 
   const codes = data.map((r: { code: string }) => r.code);
 
@@ -80,6 +92,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    bucket,
     processed: codes.length,
     updated,
     notFound,
