@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     .eq("date_synced", false)
     .or(orFilter)
     .order("peak_ccu", { ascending: false, nullsFirst: false })
-    .limit(1000);
+    .limit(200);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data?.length) return NextResponse.json({ ok: true, done: true, bucket, processed: 0 });
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
   let updated = 0;
   let notFound = 0;
-  const CONCURRENT = 20;
+  const CONCURRENT = 8;
   const active = new Set<Promise<void>>();
 
   async function processOne(code: string) {
